@@ -3027,6 +3027,19 @@ func TestInterPodAffinityPreemption(t *testing.T) {
 		},
 	}
 
+	// Start a single API server with all feature groups enabled for the full test matrix.
+	// Individual subtests override specific scheduler feature gates via SetFeatureGatesDuringTest;
+	// those gates are scheduler-only and do not require a distinct API server per combination.
+	// GenericWorkload and CompositePodGroup are enabled here so the associated API groups are
+	// available for all subtests, including those that test with these gates disabled — the
+	// scheduler simply does not use the extra APIs when the gate is off.
+	featuregatetesting.SetFeatureGatesDuringTest(t, utilfeature.DefaultFeatureGate, featuregatetesting.FeatureOverrides{
+		features.GenericWorkload:                 true,
+		features.CompositePodGroup:               true,
+		features.TopologyAwareWorkloadScheduling: true,
+	})
+	sharedAPICtx := testutils.InitTestAPIServer(t, "preemption", nil)
+
 	for _, clearingNominatedNodeNameAfterBinding := range []bool{true, false} {
 		for _, genericOpts := range []struct{ genericWorkloadEnabled, cpgEnabled bool }{
 			{genericWorkloadEnabled: true, cpgEnabled: true},
@@ -3035,13 +3048,6 @@ func TestInterPodAffinityPreemption(t *testing.T) {
 		} {
 			genericWorkloadEnabled := genericOpts.genericWorkloadEnabled
 			cpgEnabled := genericOpts.cpgEnabled
-			featuregatetesting.SetFeatureGatesDuringTest(t, utilfeature.DefaultFeatureGate, featuregatetesting.FeatureOverrides{
-				features.GenericWorkload:                       genericWorkloadEnabled,
-				features.CompositePodGroup:                     cpgEnabled,
-				features.TopologyAwareWorkloadScheduling:       cpgEnabled,
-				features.ClearingNominatedNodeNameAfterBinding: clearingNominatedNodeNameAfterBinding,
-			})
-			sharedAPICtx := testutils.InitTestAPIServer(t, "preemption", nil)
 
 			for _, asyncPreemptionEnabled := range []bool{true, false} {
 				for _, fpEnabled := range []bool{true, false} {
